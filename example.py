@@ -4,6 +4,8 @@ import logging
 import os
 import requests
 
+logging.getLogger().setLevel(logging.INFO)
+
 API_KEY = 'YOURKEYHERE'
 API_URL = 'https://onechart-prod.appspot.com/partner/upload_url'
 UPLOAD_CHUNK_SIZE = 1024*1024
@@ -44,7 +46,7 @@ def upload(filepath: str, mime_type: str, patient_id: str,
     # Step 1. Initiate resumable upload.
     logging.info('Initializing resumable upload.')
     headers = {
-        'Content-Length': 0,
+        'Content-Length': '0',
         'Content-Type': mime_type,
         'x-goog-resumable': 'start',
     }
@@ -60,7 +62,7 @@ def upload(filepath: str, mime_type: str, patient_id: str,
     logging.info('Uploading.')
     f = open(filepath, 'rb')
     headers = {
-        'Content-Length': f_size,
+        'Content-Length': str(f_size),
         'Content-MD5': f_md5,
     }
     resp = requests.put(upload_session_uri, data=f, headers=headers)
@@ -73,7 +75,7 @@ def upload(filepath: str, mime_type: str, patient_id: str,
         # Step 4. Upload interrupted, query for upload status.
         logging.info('Upload interrupted. Fetching upload status.')
         headers = {
-            'Content-Length': 0,
+            'Content-Length': '0',
             'Content-Range': 'bytes */%s' % f_size,
         }
         resp = requests.put(upload_session_uri, headers=headers)
