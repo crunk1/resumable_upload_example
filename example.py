@@ -33,7 +33,11 @@ def upload(filepath: str, mime_type: str, patient_id: str,
         'patientID': patient_id,
         'referrerNPI': referrer_npi,
     }
-    signed_upload_url = requests.get(API_URL, headers=headers, params=params)
+    resp = requests.get(API_URL, headers=headers, params=params)
+    if resp.status_code != HTTPStatus.OK:
+        raise Exception(
+            'Failed getting signed upload URL. HTTP status: %s' % resp.reason)
+    signed_upload_url = resp.json()['url']
 
     # Step 1. Initiate resumable upload.
     headers = {
