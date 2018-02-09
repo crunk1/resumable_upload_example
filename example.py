@@ -3,12 +3,9 @@ from http import HTTPStatus
 import os
 import requests
 
+API_KEY = 'YOURKEYHERE'
+API_URL = 'https://onechart-prod.appspot.com/partner/upload_url'
 UPLOAD_CHUNK_SIZE = 1024*1024
-
-
-def get_size(filepath: str) -> int:
-    st = os.stat(filepath)
-    return st.st_size
 
 
 # Could be more memory efficient, but sufficient for this example.
@@ -21,16 +18,27 @@ def md5(filepath: str) -> str:
 
 
 # See https://cloud.google.com/storage/docs/xml-api/resumable-upload.
-def upload_zip(filepath: str):
-    content_length = get_size(filepath)
-    content_md5 = md5(filepath)  # Optional, but recommended.
-    content_type = 'application/zip'
-    signed_upload_url = requests.get('https://stuff/upload_url')
+def upload(filepath: str, mime_type: str, patient_id: str,
+           referrer_npi: str):
+    f_size = os.stat(filepath).st_size
+    f_md5 = md5(filepath)  # Optional, but recommended.
+
+    # Step 0. Get the signed URL for uploading.
+    headers = {
+        'Authorization': 'Key %s' % API_KEY,
+        'Content-Type': mime_type,
+        'Content-MD5': f_md5,
+    }
+    params = {
+        'patientID': patient_id,
+        'referrerNPI': referrer_npi,
+    }
+    signed_upload_url = requests.get(API_URL, headers=headers, params=params)
 
     # Step 1. Initiate resumable upload.
     headers = {
         'Content-Length': 0,
-        'Content-Type': content_type,
+        'Content-Type': mime_type,
         'x-goog-resumable': 'start',
     }
     resp = requests.post(signed_upload_url, headers=headers)
@@ -44,12 +52,39 @@ def upload_zip(filepath: str):
     # Step 3. Upload the file.
     f = open(filepath, 'rb')
     headers = {
-        'Content-Length': content_length,
-        'Content-MD5': content_md5,
+        'Content-Length': f_size,
+        'Content-MD5': f_md5,
     }
     resp = requests.put(upload_session_uri, data=f, headers=headers)
     while resp.status_code != HTTPStatus.OK:
-        if resp.status_code in [HTTPStatus.INTERNAL_SERVER_ERROR,
-                                HTTPStatus.SERVICE_UNAVAILABLE]:
-            pass
+        if resp.status_code not in [HTTPStatus.INTERNAL_SERVER_ERROR,
+                                    HTTPStatus.SERVICE_UNAVAILABLE]:
+            raise Exception(
+                'Upload failed. HTTP status: %s' % resp.reason)
 
+        # Step 4. Upload interrupted, query for upload status.
+        headers = {
+            'Content-Length': 0,
+            'Content-Range': 'bytes */%s' % f_size,
+        }
+        resp = requests.put(upload_session_uri, headers=headers)
+
+        # Step 5. Process upload status query response.
+        if resp.status_code != HTTPStatus.PERMANENT_REDIRECT:
+            raise Exception(
+                'Upload failed to get status. HTTP Status: %s' % resp.reason)
+        # Range example: "bytes=0-12345"
+        start = int(resp.headers['Range'].split('-')[1]) + 1
+
+        # Step 6. Resume upload.
+        headers = {
+            'Content-Length': f_size - start,
+            'Content-MD5': f_md5,
+            'Content-Range': 'bytes %s-%s/%s' % (start, f_size - 1, f_size),
+        }
+        f.seek(start)
+        resp = requests.put(upload_session_uri, data=f, headers=headers)
+
+
+if __name__ == '__main__':
+    upload('stuff.zip', 'application/zip', 'foo', '1790857241')
