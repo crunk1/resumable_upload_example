@@ -1,5 +1,6 @@
 import hashlib
 from http import HTTPStatus
+import logging
 import os
 import requests
 
@@ -23,7 +24,8 @@ def upload(filepath: str, mime_type: str, patient_id: str,
     f_size = os.stat(filepath).st_size
     f_md5 = md5(filepath)  # Optional, but recommended.
 
-    # Step 0. Get the signed URL for uploading.
+    # Step 0. Get the signed upload URL.
+    logging.info('Getting signed upload URL from OneChart.')
     headers = {
         'Authorization': 'Key %s' % API_KEY,
         'Content-Type': mime_type,
@@ -40,6 +42,7 @@ def upload(filepath: str, mime_type: str, patient_id: str,
     signed_upload_url = resp.json()['url']
 
     # Step 1. Initiate resumable upload.
+    logging.info('Initializing resumable upload.')
     headers = {
         'Content-Length': 0,
         'Content-Type': mime_type,
@@ -54,6 +57,7 @@ def upload(filepath: str, mime_type: str, patient_id: str,
     upload_session_uri = resp.headers['Location']
 
     # Step 3. Upload the file.
+    logging.info('Uploading.')
     f = open(filepath, 'rb')
     headers = {
         'Content-Length': f_size,
@@ -67,6 +71,7 @@ def upload(filepath: str, mime_type: str, patient_id: str,
                 'Upload failed. HTTP status: %s' % resp.reason)
 
         # Step 4. Upload interrupted, query for upload status.
+        logging.info('Upload interrupted. Fetching upload status.')
         headers = {
             'Content-Length': 0,
             'Content-Range': 'bytes */%s' % f_size,
@@ -81,6 +86,7 @@ def upload(filepath: str, mime_type: str, patient_id: str,
         start = int(resp.headers['Range'].split('-')[1]) + 1
 
         # Step 6. Resume upload.
+        logging.info('Upload resuming.')
         headers = {
             'Content-Length': f_size - start,
             'Content-MD5': f_md5,
@@ -88,6 +94,8 @@ def upload(filepath: str, mime_type: str, patient_id: str,
         }
         f.seek(start)
         resp = requests.put(upload_session_uri, data=f, headers=headers)
+
+    logging.info('Upload complete.')
 
 
 if __name__ == '__main__':
