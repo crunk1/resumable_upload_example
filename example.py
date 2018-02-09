@@ -24,6 +24,7 @@ def md5(filepath: str) -> str:
 def upload(filepath: str, mime_type: str, patient_id: str,
            referrer_npi: str):
     f_size = os.stat(filepath).st_size
+    logging.info('Generating file md5 checksum.')
     f_md5 = md5(filepath)  # Optional, but recommended.
 
     # Step 0. Get the signed upload URL.
