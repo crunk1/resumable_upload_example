@@ -22,7 +22,7 @@ def md5(filepath: str) -> str:
 
 # See https://cloud.google.com/storage/docs/xml-api/resumable-upload.
 def upload(filepath: str, mime_type: str, patient_id: str,
-           referrer_npi: str):
+           referrer_npi: int, reference_id: str):
     f_size = os.stat(filepath).st_size
     logging.info('Generating file md5 checksum.')
     f_md5 = md5(filepath)  # Optional, but recommended.
@@ -36,6 +36,7 @@ def upload(filepath: str, mime_type: str, patient_id: str,
     }
     params = {
         'patientID': patient_id,
+        'referenceID': reference_id,
         'referrerNPI': referrer_npi,
     }
     resp = requests.get(API_URL, headers=headers, params=params)
@@ -102,4 +103,6 @@ def upload(filepath: str, mime_type: str, patient_id: str,
 
 
 if __name__ == '__main__':
-    upload('stuff.zip', 'application/zip', 'foo', '1790857241')
+    upload(
+        'stuff.zip', 'application/zip', patient_id='foo',
+        reference_id='somereferenceID', referrer_npi=1790857241)
