@@ -3,11 +3,13 @@ from http import HTTPStatus
 import logging
 import os
 import requests
+from typing import Optional
 
 logging.getLogger().setLevel(logging.INFO)
 
-API_KEY = 'YOURKEYHERE'
-API_URL = 'https://onechart-prod.appspot.com/partner/upload_url'
+API_KEY = 'YOURKEY'
+API_SECRET = 'YOURSECRET'
+API_URL = 'https://api.onecharthealth.com/partners/upload_url'
 UPLOAD_CHUNK_SIZE = 1024*1024
 
 
@@ -21,25 +23,29 @@ def md5(filepath: str) -> str:
 
 
 # See https://cloud.google.com/storage/docs/xml-api/resumable-upload.
-def upload(filepath: str, mime_type: str, patient_id: str,
-           referrer_npi: int, reference_id: str):
+def upload(filepath: str, mime_type: str, patient_id: str, file_type: str,
+           file_description: str, referrer_npi: Optional[int]=None,
+           reference_id: Optional[str]=None):
     f_size = os.stat(filepath).st_size
     logging.info('Generating file md5 checksum.')
-    f_md5 = md5(filepath)  # Optional, but recommended.
+    # f_md5 = md5(filepath)  # Optional, but recommended.
 
-    # Step 0. Get the signed upload URL.
+    # Step 0. Get the signed upload URL from OneChart.
     logging.info('Getting signed upload URL from OneChart.')
-    headers = {
-        'Authorization': 'Key %s' % API_KEY,
-        'Content-Type': mime_type,
-        'Content-MD5': f_md5,
-    }
-    params = {
+    headers = {'Authorization': 'Key %s:%s' % (API_KEY, API_SECRET)}
+    body = {
         'patientID': patient_id,
-        'referenceID': reference_id,
-        'referrerNPI': referrer_npi,
+        'description': file_description,
+        'type': file_type,
+        'Content-Type': mime_type,
+        # 'Content-MD5': f_md5,
     }
-    resp = requests.get(API_URL, headers=headers, params=params)
+    if referrer_npi:
+        body['referrerNPI'] = referrer_npi
+    if reference_id:
+        body['referenceID'] = reference_id
+    import pdb; pdb.set_trace()
+    resp = requests.post(API_URL, headers=headers, json=body)
     if resp.status_code != HTTPStatus.OK:
         raise Exception(
             'Failed getting signed upload URL. HTTP status: %s' % resp.reason)
@@ -65,7 +71,7 @@ def upload(filepath: str, mime_type: str, patient_id: str,
     f = open(filepath, 'rb')
     headers = {
         'Content-Length': str(f_size),
-        'Content-MD5': f_md5,
+        # 'Content-MD5': f_md5,
     }
     resp = requests.put(upload_session_uri, data=f, headers=headers)
     while resp.status_code != HTTPStatus.OK:
@@ -93,7 +99,7 @@ def upload(filepath: str, mime_type: str, patient_id: str,
         logging.info('Upload resuming.')
         headers = {
             'Content-Length': f_size - start,
-            'Content-MD5': f_md5,
+            # 'Content-MD5': f_md5,
             'Content-Range': 'bytes %s-%s/%s' % (start, f_size - 1, f_size),
         }
         f.seek(start)
@@ -103,6 +109,14 @@ def upload(filepath: str, mime_type: str, patient_id: str,
 
 
 if __name__ == '__main__':
+    filepath = input('Filepath of file to upload: ')
+    mimetype = input('Mimetype of file to upload: ')
+    patient_id = input('Patient ID: ')
+    reference_id = input('Reference ID (optional): ') or None
+    referrer_npi = input('Referrer NPI (optional): ')
+    referrer_npi = int(referrer_npi) if referrer_npi else None
+    file_type = input('Type of file (e.g. MRI): ')
+    file_desc = input('Description of file: ')
     upload(
-        'stuff.zip', 'application/zip', patient_id='foo',
-        reference_id='somereferenceID', referrer_npi=1790857241)
+        filepath, mimetype, patient_id, file_type, file_desc,
+        referrer_npi=referrer_npi, reference_id=reference_id)
