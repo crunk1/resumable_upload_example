@@ -1,4 +1,3 @@
-import hashlib
 from http import HTTPStatus
 import logging
 import os
@@ -13,22 +12,12 @@ API_URL = 'https://api.onecharthealth.com/partners/upload_url'
 UPLOAD_CHUNK_SIZE = 1024*1024
 
 
-# Could be more memory efficient, but sufficient for this example.
-def md5(filepath: str) -> str:
-    h = hashlib.md5()
-    with open(filepath, 'rb') as f:
-        for chunk in iter(lambda: f.read(4096), b''):
-            h.update(chunk)
-    return h.hexdigest()
-
-
 # See https://cloud.google.com/storage/docs/xml-api/resumable-upload.
 def upload(filepath: str, mime_type: str, patient_id: str, file_type: str,
            file_description: str, referrer_npi: Optional[int]=None,
-           reference_id: Optional[str]=None):
+           rendering_npi: Optional[int]=None,
+           accession_number: Optional[str]=None):
     f_size = os.stat(filepath).st_size
-    logging.info('Generating file md5 checksum.')
-    # f_md5 = md5(filepath)  # Optional, but recommended.
 
     # Step 0. Get the signed upload URL from OneChart.
     logging.info('Getting signed upload URL from OneChart.')
@@ -38,12 +27,13 @@ def upload(filepath: str, mime_type: str, patient_id: str, file_type: str,
         'description': file_description,
         'type': file_type,
         'Content-Type': mime_type,
-        # 'Content-MD5': f_md5,
     }
     if referrer_npi:
         body['referrerNPI'] = referrer_npi
-    if reference_id:
-        body['referenceID'] = reference_id
+    if rendering_npi:
+        body['renderingNPI'] = rendering_npi
+    if accession_number:
+        body['accessionNumber'] = accession_number
     import pdb; pdb.set_trace()
     resp = requests.post(API_URL, headers=headers, json=body)
     if resp.status_code != HTTPStatus.OK:
@@ -111,12 +101,15 @@ def upload(filepath: str, mime_type: str, patient_id: str, file_type: str,
 if __name__ == '__main__':
     filepath = input('Filepath of file to upload: ')
     mimetype = input('Mimetype of file to upload: ')
-    patient_id = input('Patient ID: ')
-    reference_id = input('Reference ID (optional): ') or None
-    referrer_npi = input('Referrer NPI (optional): ')
-    referrer_npi = int(referrer_npi) if referrer_npi else None
     file_type = input('Type of file (e.g. MRI): ')
     file_desc = input('Description of file: ')
+    patient_id = input('Patient ID: ')
+    referrer_npi = input('Referrer NPI (optional): ')
+    referrer_npi = int(referrer_npi) if referrer_npi else None
+    rendering_npi = input('Rendering NPI (optional): ')
+    rendering_npi = int(rendering_npi) if rendering_npi else None
+    accession_number = input('Accession Number (optional): ') or None
     upload(
         filepath, mimetype, patient_id, file_type, file_desc,
-        referrer_npi=referrer_npi, reference_id=reference_id)
+        referrer_npi=referrer_npi, rendering_npi=rendering_npi,
+        accession_number=accession_number)
