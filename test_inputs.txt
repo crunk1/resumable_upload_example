@@ -1,0 +1,8 @@
+Filepath of file to upload: /Users/scott/Downloads/u.zip
+Mimetype of file to upload: application/dicom+zip
+Type of file (e.g. MRI): MRI
+Description of file: Knee (right)
+Patient ID: SC_SCOTT_TEST4
+Referring NPI (optional): 1427316280
+Rendering NPI (optional): 1326058645
+Accession Number (optional): 12345
