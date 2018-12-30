@@ -6,8 +6,9 @@ from typing import Optional
 
 logging.getLogger().setLevel(logging.INFO)
 
-API_KEY = 'YOURKEY'
-API_SECRET = 'YOURSECRET'
+# Test partner (OID=000000000000000000000000)
+API_KEY = '4f1cbf8e7f7cdd651efd9a7b0a8f50d77c37acb7'
+API_SECRET = 'c3237759042595d306f33dec551187dfdb2c0d46'
 API_URL = 'https://api.onecharthealth.com/partners/upload_url'
 UPLOAD_CHUNK_SIZE = 1024*1024
 
