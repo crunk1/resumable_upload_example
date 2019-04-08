@@ -1,8 +1,11 @@
+import argparse
 from http import HTTPStatus
 import logging
 import os
-import requests
 from typing import Optional
+
+import maya
+import requests
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -14,10 +17,11 @@ UPLOAD_CHUNK_SIZE = 1024*1024
 
 
 # See https://cloud.google.com/storage/docs/xml-api/resumable-upload.
-def upload(filepath: str, mime_type: str, patient_id: str, file_type: str,
-           file_description: str, referring_npi: Optional[int]=None,
-           rendering_npi: Optional[int]=None,
-           accession_number: Optional[str]=None):
+def upload(filepath: str, mime_type: str, patient_id: str, record_type: str,
+           record_desc: str, encounter_date_yyyymmdd: str = None,
+           referring_npi: Optional[int] = None,
+           rendering_npi: Optional[int] = None,
+           accession_number: Optional[str] = None):
     f_size = os.stat(filepath).st_size
 
     # Step 0. Get the signed upload URL from OneChart.
@@ -25,8 +29,8 @@ def upload(filepath: str, mime_type: str, patient_id: str, file_type: str,
     headers = {'Authorization': f'Key {API_KEY}:{API_SECRET}'}
     body = {
         'patientID': patient_id,
-        'description': file_description,
-        'type': file_type,
+        'description': record_desc,
+        'type': record_type,
         'Content-Type': mime_type,
     }
     if referring_npi:
@@ -35,6 +39,9 @@ def upload(filepath: str, mime_type: str, patient_id: str, file_type: str,
         body['renderingNPI'] = rendering_npi
     if accession_number:
         body['accessionNumber'] = accession_number
+    if encounter_date_yyyymmdd:
+        d = maya.MayaDT.from_iso8601(encounter_date_yyyymmdd + 'T120000Z')
+        body['encounterDate'] = d.epoch
     resp = requests.post(API_URL, headers=headers, json=body)
     if resp.status_code != HTTPStatus.OK:
         s = resp.status_code
@@ -100,18 +107,49 @@ def upload(filepath: str, mime_type: str, patient_id: str, file_type: str,
     logging.info('Upload complete.')
 
 
-if __name__ == '__main__':
-    filepath = input('Filepath of file to upload: ')
-    mimetype = input('Mimetype of file to upload: ')
-    file_type = input('Type of file (e.g. MRI): ')
-    file_desc = input('Description of file: ')
-    patient_id = input('Patient ID: ')
+parser = argparse.ArgumentParser()
+parser.add_argument('--filepath')
+parser.add_argument('--mimetype')
+parser.add_argument('--record_type')
+parser.add_argument('--record_desc')
+parser.add_argument('--patient_id')
+parser.add_argument('--accession_number')
+parser.add_argument('--encounter_date_yyyymmdd')
+args = parser.parse_args()
+
+
+def main():
+    filepath = args.filepath
+    if not filepath:
+        filepath = input('Filepath of file to upload: ')
+    mimetype = args.mimetype
+    if not mimetype:
+        mimetype = input('Mimetype of file to upload: ')
+    record_type = args.record_type
+    if not record_type:
+        record_type = input('Type of record (e.g. MRI): ')
+    record_desc = args.record_desc
+    if not record_desc:
+        record_desc = input('Description of record: ')
+    patient_id = args.patient_id
+    if not patient_id:
+        patient_id = input('Patient ID: ')
+    encounter_date_yyyymmdd = args.encounter_date_yyyymmdd
+    if not encounter_date_yyyymmdd:
+        encounter_date_yyyymmdd = input('Encounter Date YYYYMMDD (optional): ') or None
     referring_npi = input('Referring NPI (optional): ')
     referring_npi = int(referring_npi) if referring_npi else None
     rendering_npi = input('Rendering NPI (optional): ')
     rendering_npi = int(rendering_npi) if rendering_npi else None
-    accession_number = input('Accession Number (optional): ') or None
+    accession_number = args.accession_number
+    if not accession_number:
+        accession_number = input('Accession Number (optional): ') or None
     upload(
-        filepath, mimetype, patient_id, file_type, file_desc,
+        filepath, mimetype, patient_id, record_type, record_desc,
+        encounter_date_yyyymmdd=encounter_date_yyyymmdd,
         referring_npi=referring_npi, rendering_npi=rendering_npi,
         accession_number=accession_number)
+
+
+if __name__ == '__main__':
+    main()
